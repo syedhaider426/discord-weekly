@@ -6,18 +6,18 @@ import {
   Message,
   Collection,
   User,
-} from 'discord.js';
-import moment from 'moment';
-import Fuse from 'fuse.js';
-import { uniq, chunk, flatten, capitalize, orderBy } from 'lodash';
+} from "discord.js";
+import moment from "moment";
+import Fuse from "fuse.js";
+import { uniq, chunk, flatten, capitalize, orderBy } from "lodash";
 
-import Spotify, { SpotifyTrack } from './spotify';
-import YouTube from './youtube';
-import AppleMusic from './apple';
-import SoundCloud from './soundcloud';
-import { sleep } from './sleep';
+import Spotify, { SpotifyTrack } from "./spotify";
+import YouTube from "./youtube";
+import AppleMusic from "./apple";
+import SoundCloud from "./soundcloud";
+import { sleep } from "./sleep";
 
-require('dotenv').config();
+require("dotenv").config();
 
 const LIKE_THRESHOLD = 2;
 const DISLIKE_THRESHOLD = -1;
@@ -26,7 +26,7 @@ const NUMBER_OF_ITEMS = 5;
 
 type Messages = Collection<string, Message>;
 
-type ServiceType = 'spotify' | 'youtube' | 'apple' | 'soundcloud';
+type ServiceType = "spotify" | "youtube" | "apple" | "soundcloud";
 
 interface TrackData {
   url: string;
@@ -50,21 +50,21 @@ interface ArtistData {
 
 const services: Service[] = [
   {
-    type: 'spotify',
+    type: "spotify",
     match: Spotify.match,
   },
   {
-    type: 'youtube',
+    type: "youtube",
     match: YouTube.match,
     get: YouTube.get,
   },
   {
-    type: 'apple',
+    type: "apple",
     match: AppleMusic.match,
     get: AppleMusic.get,
   },
   {
-    type: 'soundcloud',
+    type: "soundcloud",
     match: SoundCloud.match,
     get: SoundCloud.get,
   },
@@ -84,7 +84,7 @@ export default class Bot {
   public async login() {
     await this.client.login(process.env.DISCORD_TOKEN);
     this.guild = this.client.guilds.cache.find(
-      (guild) => guild.id == process.env.DISCORD_GUILD_ID!,
+      (guild) => guild.id == process.env.DISCORD_GUILD_ID!
     );
     console.log(`✅  Connected to Discord`);
   }
@@ -96,7 +96,7 @@ export default class Bot {
     channel: TextChannel,
     fromDate: moment.Moment,
     toDate: moment.Moment,
-    messages: Messages = new Collection<string, Message>(),
+    messages: Messages = new Collection<string, Message>()
   ): Promise<Messages> {
     if (fromDate.isAfter(toDate)) {
       return messages;
@@ -106,7 +106,7 @@ export default class Bot {
     console.log(
       `🌐  Fetching messages in ${
         channel.name
-      } from ${fromDate.toString()} to ${toDate.toString()}...`,
+      } from ${fromDate.toString()} to ${toDate.toString()}...`
     );
     const newMessages = await channel.messages.fetch({
       before: SnowflakeUtil.generate(toDate.toDate()),
@@ -119,15 +119,15 @@ export default class Bot {
 
     // We're only interested in getting the messages before the target date
     const messagesToAdd = newMessages.filter((message) =>
-      moment(message.createdAt).isBetween(fromDate, toDate),
+      moment(message.createdAt).isBetween(fromDate, toDate)
     );
 
     // If all messages were after the target date, fetch for more
     return this.fetchMessages(
       channel,
       fromDate,
-      moment(newMessages.last()?.createdAt).subtract(1, 'ms'),
-      messages.concat(messagesToAdd),
+      moment(newMessages.last()?.createdAt).subtract(1, "ms"),
+      messages.concat(messagesToAdd)
     );
   }
 
@@ -161,18 +161,18 @@ export default class Bot {
           console.log(
             `👍  Fetching votes... (${
               (trackData.length / messages.size) * 100
-            }%)`,
+            }%)`
           );
-          const likeData = reactions.cache.get('👍');
+          const likeData = reactions.cache.get("👍");
           if (likeData) {
             likes = (await likeData.users.fetch()).filter(
-              (user) => user.id !== author.id && !user.bot,
+              (user) => user.id !== author.id && !user.bot
             ).size;
           }
-          const dislikeData = reactions.cache.get('👎');
+          const dislikeData = reactions.cache.get("👎");
           if (dislikeData) {
             dislikes = (await dislikeData.users.fetch()).filter(
-              (user) => user.id !== author.id && !user.bot,
+              (user) => user.id !== author.id && !user.bot
             ).size;
           }
 
@@ -185,7 +185,7 @@ export default class Bot {
                 author,
                 likes: likes - dislikes,
                 timestamp: createdTimestamp,
-              })),
+              }))
             );
           }
         }
@@ -217,7 +217,7 @@ export default class Bot {
       track: SpotifyTrack,
       author: User,
       service: Service,
-      likes: number,
+      likes: number
     ) => {
       // General stats
       counts[service.type] += 1;
@@ -234,7 +234,7 @@ export default class Bot {
 
       // Contributor stats
       const contributorIndex = contributions.findIndex(
-        (contribution) => contribution.author.id === author.id,
+        (contribution) => contribution.author.id === author.id
       );
       if (contributorIndex === -1) {
         contributions.push({ author, count: 1, likes });
@@ -246,29 +246,53 @@ export default class Bot {
 
     // Bulk-fetch direct Spotify tracks
     for (let trackChunk of chunk(
-      trackData.filter(({ service }) => service.type === 'spotify'),
-      50,
+      trackData.filter(({ service }) => service.type === "spotify"),
+      50
     )) {
       console.log(
         `🔍  Fetching Spotify data... (${
           (tracks.length / trackData.length) * 100
-        }%)`,
+        }%)`
       );
-      const spotifyTracks = await spotify.getTracks(
+      const albumTracks = await spotify.getAlbums(
         trackChunk.map(({ url }) =>
-          url.replace(/https:\/\/open.spotify.com\/track\//gi, ''),
-        ),
+          url.replace(/https:\/\/open.spotify.com\/album\//gi, "")
+        )
       );
+      let spotifyTracks = await spotify.getTracks(
+        trackChunk.map(({ url }) =>
+          url.replace(/https:\/\/open.spotify.com\/track\//gi, "")
+        )
+      );
+      spotifyTracks = albumTracks.concat(spotifyTracks);
+      let chunkMap = new Map<string, TrackData>();
+      for (let chunk of trackChunk) {
+        let url = chunk.url;
+        url = url.replace("https://open.spotify.com/track/", "");
+        chunkMap[url] = chunk;
+      }
       for (let index in spotifyTracks) {
         const track = spotifyTracks[index];
         if (track) {
-          const { author, likes, service, timestamp } = trackChunk[index];
-          logStats(track, author, service, likes);
-          tracks.push({
-            track,
-            likes,
-            timestamp,
-          });
+          let url = track.uri.replace("spotify:track:", "");
+          const spotifyTrack = chunkMap[url];
+          var likes = 1;
+          var timestamp = 1;
+          if (spotifyTrack != null) {
+            let { author, likes, service, timestamp } = chunkMap[url];
+            logStats(track, author, service, likes);
+            tracks.push({
+              track,
+              likes,
+              timestamp,
+            });
+          } else {
+            tracks.push({
+              track,
+              likes,
+              timestamp,
+            });
+          }
         }
       }
       await sleep(1000);
@@ -276,7 +300,7 @@ export default class Bot {
 
     // Search Spotify for the rest
     for (let { author, service, url, likes, timestamp } of trackData.filter(
-      ({ service }) => service.type !== 'spotify',
+      ({ service }) => service.type !== "spotify"
     )) {
       const title = await service.get(url);
 
@@ -285,32 +309,32 @@ export default class Bot {
       }
 
       let searchQuery = title;
-      if (service.type === 'youtube') {
+      if (service.type === "youtube") {
         searchQuery = title
-          .replace(/ *\([^)]*\) */g, '')
-          .replace(/[^A-Za-z0-9 ]/g, '')
-          .replace(/\s{2,}/g, ' ');
+          .replace(/ *\([^)]*\) */g, "")
+          .replace(/[^A-Za-z0-9 ]/g, "")
+          .replace(/\s{2,}/g, " ");
       }
 
       if (searchQuery.length >= 3) {
         console.log(
           `🔍  Searching Spotify for "${searchQuery}"... (${
             (tracks.length / trackData.length) * 100
-          }%)`,
+          }%)`
         );
         const fuse = new Fuse(await spotify.searchTracks(searchQuery), {
           threshold: 0.8,
           keys: [
             {
-              name: 'title',
+              name: "title",
               weight: 0.7,
             },
             {
-              name: 'artists.name',
+              name: "artists.name",
               weight: 0.5,
             },
             {
-              name: 'album',
+              name: "album",
               weight: 0.1,
             },
           ],
@@ -340,9 +364,9 @@ export default class Bot {
     const artists = flatten(
       await Promise.all(
         chunk(artistIds, 50).map((artistChunk) =>
-          spotify.getArtists(artistChunk),
-        ),
-      ),
+          spotify.getArtists(artistChunk)
+        )
+      )
     );
 
     artists.forEach((artist) => {
@@ -372,16 +396,13 @@ export default class Bot {
     }
 
     // Calculate the date range
-    const fromDate = moment()
-      .startOf('isoWeek')
-      .startOf('day')
-      .subtract(weeksAgo, 'week');
-    const toDate = fromDate.clone().endOf('isoWeek');
+    const fromDate = moment().subtract(weeksAgo, "week");
+    const toDate = fromDate.clone().add(weeksAgo, "week");
 
     // Determine new playlist title
     const playlistName = `${process.env.PLAYLIST_NAME} (${fromDate.format(
-      'Do MMMM',
-    )} - ${toDate.format('Do MMMM')})`;
+      "Do MMMM"
+    )} - ${toDate.format("Do MMMM")})`;
 
     // Fetch all messages from the channel within the past week
     const messages = await (
@@ -394,47 +415,40 @@ export default class Bot {
     console.log(`❓  ${trackData.length} contained track links`);
 
     // Convert URLs into Spotify URIs if possible
-    const {
-      tracks,
-      counts,
-      contributions,
-      artists,
-    } = await this.convertTrackData(spotify, trackData);
+    const { tracks, counts, contributions, artists } =
+      await this.convertTrackData(spotify, trackData);
 
     // Exit if we didn't find any tracks
     if (!tracks.length) {
-      console.log('⚠️  No tracks were found...');
+      console.log("⚠️  No tracks were found...");
       return;
     }
 
     // Determine genres from artist pages if possible
     const genres = await this.fetchGenres(spotify, artists);
     const finalTracks = uniq(
-      orderBy(orderBy(tracks, 'timestamp'), 'likes').reverse(),
+      orderBy(orderBy(tracks, "timestamp"), "likes").reverse()
     );
     console.log(`🎵  ${finalTracks.length} tracks found`, counts);
 
     // Reset and update playlist
-    if (process.env.ENVIRONMENT !== 'development') {
-      console.log('🗑  Clearing playlist...');
-      await spotify.clearPlaylist();
-      console.log(`✏️  Renaming playlist to \"${playlistName}\"...`);
-      await spotify.renamePlaylist(playlistName);
-      console.log('➕  Adding tracks to playlist...');
+    if (process.env.ENVIRONMENT !== "development") {
+      console.log("➕  Adding tracks to playlist...");
       await spotify.addTracksToPlaylist(
         finalTracks.map(({ track }) => track.uri),
+        false
       );
       console.log(
-        '✨  Playlist updated successfully',
-        `https://open.spotify.com/playlist/${process.env.PLAYLIST_ID}`,
+        "✨  Playlist updated successfully",
+        `https://open.spotify.com/playlist/${process.env.PLAYLIST_ID}`
       );
     } else {
-      console.log('🛑  Playlist not saved (development mode)');
+      console.log("🛑  Playlist not saved (development mode)");
     }
 
     // Send the news update
     const newsChannel = await this.findChannel(
-      process.env.MUSIC_DESTINATION_CHANNEL_ID,
+      process.env.MUSIC_DESTINATION_CHANNEL_ID
     );
     if (!newsChannel) {
       return;
@@ -444,68 +458,44 @@ export default class Bot {
 
     // Artists
     const popularArtists = artists.filter(
-      ({ count }) => count >= ARTISTS_THRESHOLD,
+      ({ count }) => count >= ARTISTS_THRESHOLD
     );
     if (popularArtists.length > 0) {
-      message += '👩‍🎤 `Popular Artists`\n\n';
+      message += "👩‍🎤 `Popular Artists`\n\n";
       popularArtists
         .reverse()
         .sort((a, b) => b.count - a.count)
         .slice(0, NUMBER_OF_ITEMS)
         .forEach((artist) => {
           message += `▪️ ${artist.name} (${artist.count} track${
-            artist.count === 1 ? '' : 's'
+            artist.count === 1 ? "" : "s"
           })\n`;
         });
     }
 
     // Genres
     if (genres.length > 0) {
-      message += '\n🎸 `Dominant Genres`\n\n';
+      message += "\n🎸 `Dominant Genres`\n\n";
       genres
         .reverse()
         .sort((a, b) => b.count - a.count)
         .slice(0, NUMBER_OF_ITEMS)
         .forEach((genre) => {
           message += `▪️ ${capitalize(genre.name)} (${Math.round(
-            (genre.count / finalTracks.length) * 100,
+            (genre.count / finalTracks.length) * 100
           )}%)\n`;
         });
     }
 
-    // Tracks
-    const popularTracks = finalTracks.filter(
-      ({ likes }) => likes >= LIKE_THRESHOLD,
-    );
-    if (popularTracks.length > 0 && process.env.DISABLE_VOTING !== 'true') {
-      message += '\n💽 `Most Liked Tracks`\n\n';
-      popularTracks.slice(0, NUMBER_OF_ITEMS).forEach(({ track, likes }) => {
-        message += `▪️ ${track.artists.map(({ name }) => name).join(', ')} - ${
-          track.name
-        } (${likes} like${likes === 1 ? '' : 's'})\n`;
-      });
-    }
-
     // Curators
     const topCountCurators = contributions.sort((a, b) => b.count - a.count);
-    const topLikedCurators = topCountCurators
-      .filter(({ likes }) => likes > 0)
-      .sort((a, b) => b.likes - a.likes);
-    const hasLikes =
-      topLikedCurators.length > 0 && process.env.DISABLE_VOTING !== 'true';
-    const topCurators = hasLikes ? topLikedCurators : topCountCurators;
-    message += '\n🏆 `Top Curators`\n\n';
+    const topCurators = topCountCurators;
+    message += "\n🏆 `Top Curators`\n\n";
     topCurators.slice(0, NUMBER_OF_ITEMS).forEach((contribution) => {
       message += `▪️ <@${contribution.author.id}> (`;
-      if (hasLikes) {
-        message += `${contribution.likes} vote${
-          contribution.likes === 1 ? '' : 's'
-        }`;
-      } else {
-        message += `${contribution.count} contribution${
-          contribution.count === 1 ? '' : 's'
-        }`;
-      }
+      message += `${contribution.count} contribution${
+        contribution.count === 1 ? "" : "s"
+      }`;
       message += `)\n`;
     });
 
@@ -513,12 +503,50 @@ export default class Bot {
     message += `\nIn total, **${finalTracks.length} tracks** were added to the playlist.`;
     message += `\nThank you for contributing, and enjoy your listen! 🎵\nhttps://open.spotify.com/playlist/${process.env.PLAYLIST_ID}`;
 
-    if (process.env.ENVIRONMENT !== 'development') {
+    if (process.env.ENVIRONMENT !== "development") {
       await newsChannel.send(message);
       console.log(`✨  News update sent to ${newsChannel.name}!`);
     } else {
       console.log(`🛑  News update not sent (development mode)\n`);
       console.log(message);
     }
+  }
+
+  public async addTrackToPlaylist(spotify: Spotify, singleTrack: boolean) {
+    console.log("This should always run");
+    await spotify.refreshTokens();
+    this.client.on("message", async (message) => {
+      if (message.channel.id === process.env.MUSIC_SOURCE_CHANNEL_ID) {
+        console.log("We found a value message");
+        // Parse track URLs
+        const messages = new Collection<string, Message>();
+        messages.set("1", message);
+        const trackData = await this.parseTrackData(messages);
+        console.log(`❓  ${trackData.length} contained track links`);
+
+        // Convert URLs into Spotify URIs if possible
+        const { tracks, counts } = await this.convertTrackData(
+          spotify,
+          trackData
+        );
+
+        // Exit if we didn't find any tracks
+        if (!tracks.length) {
+          return;
+        }
+
+        // Add tracks
+        const finalTracks = uniq(
+          orderBy(orderBy(tracks, "timestamp"), "likes").reverse()
+        );
+        console.log(`🎵  ${finalTracks.length} tracks found`, counts);
+        console.log("➕  Adding tracks to playlist...");
+        await spotify.addTracksToPlaylist(
+          finalTracks.map(({ track }) => track.uri),
+          singleTrack
+        );
+        console.log("Finished adding the track.");
+      }
+    });
   }
 }

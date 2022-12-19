@@ -1,10 +1,10 @@
-import SpotifyWebApi from 'spotify-web-api-node';
-import * as fs from 'fs';
-import * as path from 'path';
-import { chunk } from 'lodash';
-import { sleep } from './sleep';
+import SpotifyWebApi from "spotify-web-api-node";
+import * as fs from "fs";
+import * as path from "path";
+import { chunk } from "lodash";
+import { sleep } from "./sleep";
 
-require('dotenv').config();
+require("dotenv").config();
 
 export interface SpotifyTrack {
   uri: string;
@@ -36,11 +36,14 @@ export default class Spotify {
   }
 
   public static match(content: string) {
-    return content.match(/https:\/\/open.spotify.com\/track\/(\w+)/gi);
+    return (
+      content.match(/https:\/\/open.spotify.com\/track\/(\w+)/gi) ||
+      content.match(/https:\/\/open.spotify.com\/album\/(\w+)/gi)
+    );
   }
 
   private get authTokenFilepath() {
-    return path.join(__dirname, '/../../spotify-auth-tokens.txt');
+    return path.join(__dirname, "/../../spotify-auth-tokens.txt");
   }
 
   public get isAuthenticated() {
@@ -50,9 +53,9 @@ export default class Spotify {
     try {
       const tokens = fs
         .readFileSync(this.authTokenFilepath, {
-          encoding: 'utf8',
+          encoding: "utf8",
         })
-        .split('\n');
+        .split("\n");
       this.setTokens(tokens[0], tokens[1]);
       return !!this.client.getAccessToken();
     } catch (e) {
@@ -62,8 +65,8 @@ export default class Spotify {
 
   public get authorizationUrl() {
     return this.client.createAuthorizeURL(
-      ['playlist-modify-public', 'playlist-modify-private'],
-      new Date().getTime().toString(),
+      ["playlist-modify-public", "playlist-modify-private"],
+      new Date().getTime().toString()
     );
   }
 
@@ -78,7 +81,7 @@ export default class Spotify {
     }
     fs.writeFileSync(
       this.authTokenFilepath,
-      `${accessToken}\n${refreshToken || this.client.getRefreshToken()}`,
+      `${accessToken}\n${refreshToken || this.client.getRefreshToken()}`
     );
   }
 
@@ -92,7 +95,7 @@ export default class Spotify {
     const response = await this.client.refreshAccessToken();
     this.setTokens(response.body.access_token, response.body.refresh_token);
     await this.getAccountDetails();
-    console.log('✅  Logged in to Spotify as', this.accountName);
+    console.log("✅  Logged in to Spotify as", this.accountName);
   }
 
   private async getAccountDetails() {
@@ -108,43 +111,24 @@ export default class Spotify {
     });
   }
 
-  public async addTracksToPlaylist(tracks: string[]) {
+  public async addTracksToPlaylist(tracks: string[], singleTrack: boolean) {
     const TRACKS_PER_PAYLOAD = 99;
     const payloads = chunk(tracks, TRACKS_PER_PAYLOAD);
     for (let i = 0; i < payloads.length; i += 1) {
       console.log(
         `⚙️  POST /playlists/${process.env.PLAYLIST_ID}/tracks (${
           i * TRACKS_PER_PAYLOAD
-        }-${i * TRACKS_PER_PAYLOAD + TRACKS_PER_PAYLOAD})`,
+        }-${i * TRACKS_PER_PAYLOAD + TRACKS_PER_PAYLOAD})`
       );
       const payload = payloads[i];
+      console.log(payload);
+      const options = { position: 0 };
       await sleep(1000);
-      await this.client.addTracksToPlaylist(process.env.PLAYLIST_ID, payload);
-    }
-  }
-
-  public async clearPlaylist() {
-    console.log(`⚙️  GET /playlists/${process.env.PLAYLIST_ID}/tracks`);
-    const response = await this.client.getPlaylistTracks(
-      process.env.PLAYLIST_ID,
-    );
-
-    const tracks: { uri: string }[] = response.body.items.map((item) => ({
-      uri: item.track.uri,
-    }));
-    const tracksToRemove = tracks.slice(0, 50);
-
-    console.log(
-      `⚙️  DELETE /playlists/${process.env.PLAYLIST_ID}/tracks (${tracksToRemove.length} items)`,
-    );
-    await this.client.removeTracksFromPlaylist(
-      process.env.PLAYLIST_ID,
-      tracksToRemove,
-    );
-
-    if (tracksToRemove.length > 0) {
-      await sleep(1000);
-      await this.clearPlaylist();
+      await this.client.addTracksToPlaylist(
+        process.env.PLAYLIST_ID,
+        payload,
+        options
+      );
     }
   }
 
@@ -160,8 +144,13 @@ export default class Spotify {
   }
 
   public async getTracks(ids: string[]): Promise<SpotifyTrack[]> {
-    console.log(`⚙️  GET /tracks?ids=${ids}`);
-    const response = await this.client.getTracks(ids);
+    let newIds = [];
+    for (let id of ids) {
+      if (!id.includes("album")) {
+        newIds.push(id);
+      }
+    }
+    const response = await this.client.getTracks(newIds);
     return response.body.tracks.map((item) => ({
       uri: item.uri,
       name: item.name,
@@ -191,5 +180,28 @@ export default class Spotify {
         name: item.name,
         genres: item.genres,
       }));
+  }
+
+  public async getAlbums(ids: string[]): Promise<SpotifyTrack[]> {
+    let newIds = [];
+    for (let id of ids) {
+      if (!id.includes("track")) {
+        newIds.push(id);
+      }
+    }
+    const response = await this.client.getAlbums(newIds);
+    const spotifyTrackArray: SpotifyTrack[] = [];
+    for (let album of response.body.albums) {
+      const tracks = album.tracks;
+      for (let item of tracks.items) {
+        spotifyTrackArray.push({
+          uri: item.uri,
+          name: item.name,
+          popularity: item.popularity,
+          artists: album.artists.map(({ id, name }) => ({ id, name })),
+        });
+      }
+    }
+    return spotifyTrackArray;
   }
 }

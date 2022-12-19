@@ -29,6 +29,7 @@
     "ts-node": "^8.3.0"
   },
   "scripts": {
+    "always-on": "node_modules/.bin/ts-node --files ./src/index.ts",
     "generate-playlist": "node_modules/.bin/ts-node --files ./src/generate-playlist.ts",
     "test-services": "node_modules/.bin/ts-node --files ./src/test-services.ts",
     "dev": "nodemon"

@@ -150,7 +150,7 @@ export default class Spotify {
         newIds.push(id);
       }
     }
-    if (!newIds) {
+    if (newIds.length == 0) {
       return null;
     }
     const response = await this.client.getTracks(newIds);
@@ -193,7 +193,7 @@ export default class Spotify {
         newIds.push(id);
       }
     }
-    if (!newIds) {
+    if (newIds.length == 0) {
       return spotifyTrackArray;
     }
     const response = await this.client.getAlbums(newIds);

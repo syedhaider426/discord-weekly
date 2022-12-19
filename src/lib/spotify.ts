@@ -150,6 +150,9 @@ export default class Spotify {
         newIds.push(id);
       }
     }
+    if (!newIds) {
+      return null;
+    }
     const response = await this.client.getTracks(newIds);
     return response.body.tracks.map((item) => ({
       uri: item.uri,
@@ -183,14 +186,17 @@ export default class Spotify {
   }
 
   public async getAlbums(ids: string[]): Promise<SpotifyTrack[]> {
+    const spotifyTrackArray: SpotifyTrack[] = [];
     let newIds = [];
     for (let id of ids) {
       if (!id.includes("track")) {
         newIds.push(id);
       }
     }
+    if (!newIds) {
+      return spotifyTrackArray;
+    }
     const response = await this.client.getAlbums(newIds);
-    const spotifyTrackArray: SpotifyTrack[] = [];
     for (let album of response.body.albums) {
       const tracks = album.tracks;
       for (let item of tracks.items) {

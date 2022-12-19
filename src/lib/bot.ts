@@ -264,6 +264,15 @@ export default class Bot {
           url.replace(/https:\/\/open.spotify.com\/track\//gi, "")
         )
       );
+      if (
+        albumTracks.length > 0 &&
+        (spotifyTracks == null || spotifyTracks.length == 0)
+      ) {
+        spotifyTracks = albumTracks;
+      }
+      if (albumTracks.length > 0) {
+        spotifyTracks = albumTracks.concat(spotifyTracks);
+      }
       spotifyTracks = albumTracks.concat(spotifyTracks);
       let chunkMap = new Map<string, TrackData>();
       for (let chunk of trackChunk) {

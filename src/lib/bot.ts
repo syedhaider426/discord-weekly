@@ -144,50 +144,19 @@ export default class Bot {
   private async parseTrackData(messages: Messages) {
     let trackData: TrackData[] = [];
 
-    for (let {
-      content,
-      author,
-      reactions,
-      createdTimestamp,
-    } of messages.values()) {
+    for (let { content, author, createdTimestamp } of messages.values()) {
       let match: RegExpMatchArray;
       for (let service of services) {
-        match = service.match(content);
-        if (match) {
-          let likes = 0;
-          let dislikes = 0;
-
-          // Determine number of accurate likes/dislikes (do not count bots/authors)
-          console.log(
-            `👍  Fetching votes... (${
-              (trackData.length / messages.size) * 100
-            }%)`
+        if (service.match(content)) {
+          trackData = trackData.concat(
+            match.map((url) => ({
+              url,
+              service,
+              author,
+              likes: 0,
+              timestamp: createdTimestamp,
+            }))
           );
-          const likeData = reactions.cache.get("👍");
-          if (likeData) {
-            likes = (await likeData.users.fetch()).filter(
-              (user) => user.id !== author.id && !user.bot
-            ).size;
-          }
-          const dislikeData = reactions.cache.get("👎");
-          if (dislikeData) {
-            dislikes = (await dislikeData.users.fetch()).filter(
-              (user) => user.id !== author.id && !user.bot
-            ).size;
-          }
-
-          // Ignore pretty disliked tracks
-          if (likes - dislikes > DISLIKE_THRESHOLD) {
-            trackData = trackData.concat(
-              match.map((url) => ({
-                url,
-                service,
-                author,
-                likes: likes - dislikes,
-                timestamp: createdTimestamp,
-              }))
-            );
-          }
         }
         match = undefined;
       }
@@ -520,40 +489,46 @@ export default class Bot {
     }
   }
 
-  public async addTrackToPlaylist(spotify: Spotify, singleTrack: boolean) {
+  public async addTrackToPlaylist(spotify: Spotify) {
     console.log("This should always run");
     await spotify.refreshTokens();
     this.client.on("message", async (message) => {
+      console.log(message.author);
       if (message.channel.id === process.env.MUSIC_SOURCE_CHANNEL_ID) {
-        console.log("We found a value message");
         // Parse track URLs
         const messages = new Collection<string, Message>();
         messages.set("1", message);
         const trackData = await this.parseTrackData(messages);
-        console.log(`❓  ${trackData.length} contained track links`);
-
         // Convert URLs into Spotify URIs if possible
-        const { tracks, counts } = await this.convertTrackData(
-          spotify,
-          trackData
-        );
-
+        const { tracks } = await this.convertTrackData(spotify, trackData);
         // Exit if we didn't find any tracks
         if (!tracks.length) {
           return;
         }
-
-        // Add tracks
-        const finalTracks = uniq(
-          orderBy(orderBy(tracks, "timestamp"), "likes").reverse()
-        );
-        console.log(`🎵  ${finalTracks.length} tracks found`, counts);
-        console.log("➕  Adding tracks to playlist...");
         await spotify.addTracksToPlaylist(
-          finalTracks.map(({ track }) => track.uri),
-          singleTrack
+          tracks.map(({ track }) => track.uri),
+          false
         );
-        console.log("Finished adding the track.");
+      }
+      const users = ["GulagJanitor", "bbybliss"];
+      if (
+        message.channel.id === process.env.MUSIC_SOURCE_CHANNEL_ID &&
+        !users.includes(message.author.username)
+      ) {
+        // Parse track URLs
+        const messages = new Collection<string, Message>();
+        messages.set("1", message);
+        const trackData = await this.parseTrackData(messages);
+        // Convert URLs into Spotify URIs if possible
+        const { tracks } = await this.convertTrackData(spotify, trackData);
+        // Exit if we didn't find any tracks
+        if (!tracks.length) {
+          return;
+        }
+        await spotify.addTracksToPlaylist(
+          tracks.map(({ track }) => track.uri),
+          true
+        );
       }
     });
   }

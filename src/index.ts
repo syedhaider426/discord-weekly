@@ -20,7 +20,7 @@ require("dotenv").config();
     // Boot up bot
     const bot = new Bot();
     await bot.login();
-    await bot.addTrackToPlaylist(spotify, true);
+    await bot.addTrackToPlaylist(spotify);
   } catch (e) {
     console.log(e);
     process.exit(1);

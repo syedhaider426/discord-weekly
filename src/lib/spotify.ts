@@ -111,7 +111,10 @@ export default class Spotify {
     });
   }
 
-  public async addTracksToPlaylist(tracks: string[], singleTrack: boolean) {
+  public async addTracksToPlaylist(
+    tracks: string[],
+    specialCondition: boolean
+  ) {
     const TRACKS_PER_PAYLOAD = 99;
     const payloads = chunk(tracks, TRACKS_PER_PAYLOAD);
     for (let i = 0; i < payloads.length; i += 1) {
@@ -121,14 +124,21 @@ export default class Spotify {
         }-${i * TRACKS_PER_PAYLOAD + TRACKS_PER_PAYLOAD})`
       );
       const payload = payloads[i];
-      console.log(payload);
       const options = { position: 0 };
       await sleep(1000);
-      await this.client.addTracksToPlaylist(
-        process.env.PLAYLIST_ID,
-        payload,
-        options
-      );
+      if (!specialCondition) {
+        await this.client.addTracksToPlaylist(
+          process.env.PLAYLIST_ID,
+          payload,
+          options
+        );
+      } else {
+        await this.client.addTracksToPlaylist(
+          process.env.BOOFUS,
+          payload,
+          options
+        );
+      }
     }
   }
 

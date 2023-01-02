@@ -3,3 +3,6 @@ spotify-auth-tokens.txt
 .env
 .env.*
 !.env.example
+package-lock.json
+yarn.lock
+yarn.lock

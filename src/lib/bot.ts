@@ -147,7 +147,8 @@ export default class Bot {
     for (let { content, author, createdTimestamp } of messages.values()) {
       let match: RegExpMatchArray;
       for (let service of services) {
-        if (service.match(content)) {
+        match = service.match(content);
+        if (match) {
           trackData = trackData.concat(
             match.map((url) => ({
               url,
@@ -413,7 +414,7 @@ export default class Bot {
       console.log("➕  Adding tracks to playlist...");
       await spotify.addTracksToPlaylist(
         finalTracks.map(({ track }) => track.uri),
-        false
+        true
       );
       console.log(
         "✨  Playlist updated successfully",
@@ -493,12 +494,18 @@ export default class Bot {
     console.log("This should always run");
     await spotify.refreshTokens();
     this.client.on("message", async (message) => {
-      console.log(message.author);
-      if (message.channel.id === process.env.MUSIC_SOURCE_CHANNEL_ID) {
+      if (
+        (process.env.ENVIRONMENT == "development" &&
+          message.channel.id == process.env.DEV_MUSIC_SOURCE_CHANNEL_ID) ||
+        message.channel.id == process.env.MUSIC_SOURCE_CHANNEL_ID
+      ) {
+        console.log("Found a song");
         // Parse track URLs
         const messages = new Collection<string, Message>();
         messages.set("1", message);
         const trackData = await this.parseTrackData(messages);
+        if (trackData == undefined) return;
+        if (trackData.length == 0) return;
         // Convert URLs into Spotify URIs if possible
         const { tracks } = await this.convertTrackData(spotify, trackData);
         // Exit if we didn't find any tracks
@@ -507,7 +514,7 @@ export default class Bot {
         }
         await spotify.addTracksToPlaylist(
           tracks.map(({ track }) => track.uri),
-          false
+          true
         );
       }
       const users = ["GulagJanitor", "bbybliss"];
@@ -527,7 +534,7 @@ export default class Bot {
         }
         await spotify.addTracksToPlaylist(
           tracks.map(({ track }) => track.uri),
-          true
+          false
         );
       }
     });

@@ -126,13 +126,14 @@ export default class Spotify {
       const payload = payloads[i];
       const options = { position: 0 };
       await sleep(1000);
-      if (!specialCondition) {
-        await this.client.addTracksToPlaylist(
-          process.env.PLAYLIST_ID,
-          payload,
-          options
-        );
-      } else {
+      console.log("adding to Discord Baddies");
+      await this.client.addTracksToPlaylist(
+        process.env.PLAYLIST_ID,
+        payload,
+        options
+      );
+      if (specialCondition) {
+        console.log("adding to Boofus");
         await this.client.addTracksToPlaylist(
           process.env.BOOFUS,
           payload,

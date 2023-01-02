@@ -491,37 +491,11 @@ export default class Bot {
   }
 
   public async addTrackToPlaylist(spotify: Spotify) {
-    console.log("This should always run");
     await spotify.refreshTokens();
     this.client.on("message", async (message) => {
-      if (
-        (process.env.ENVIRONMENT == "development" &&
-          message.channel.id == process.env.DEV_MUSIC_SOURCE_CHANNEL_ID) ||
-        message.channel.id == process.env.MUSIC_SOURCE_CHANNEL_ID
-      ) {
-        console.log("Found a song");
-        // Parse track URLs
-        const messages = new Collection<string, Message>();
-        messages.set("1", message);
-        const trackData = await this.parseTrackData(messages);
-        if (trackData == undefined) return;
-        if (trackData.length == 0) return;
-        // Convert URLs into Spotify URIs if possible
-        const { tracks } = await this.convertTrackData(spotify, trackData);
-        // Exit if we didn't find any tracks
-        if (!tracks.length) {
-          return;
-        }
-        await spotify.addTracksToPlaylist(
-          tracks.map(({ track }) => track.uri),
-          true
-        );
-      }
       const users = ["GulagJanitor", "bbybliss"];
-      if (
-        message.channel.id === process.env.MUSIC_SOURCE_CHANNEL_ID &&
-        !users.includes(message.author.username)
-      ) {
+      const userExists = users.includes(message.author.username);
+      if (message.channel.id === process.env.MUSIC_SOURCE_CHANNEL_ID) {
         // Parse track URLs
         const messages = new Collection<string, Message>();
         messages.set("1", message);
@@ -534,7 +508,7 @@ export default class Bot {
         }
         await spotify.addTracksToPlaylist(
           tracks.map(({ track }) => track.uri),
-          false
+          userExists
         );
       }
     });
